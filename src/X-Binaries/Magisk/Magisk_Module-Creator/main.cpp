@@ -8,22 +8,68 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fstream>
 #include <signal.h>
 #include <sys/types.h>
 #include <getopt.h>
 
 #include "localhead.h"
 
-void startup() {
+std::string path_file(std::string location) {
+    ssize_t status = readlink(location.c_str(), buffer, sizeof(buffer)-1);
+
+    if (status != -1) {
+        buffer[status] = '\0';
+        return std::string(buffer);
+    };
+    
+    return std::string("ERROR");
+};
+
+void startup(int argumentc, char *argguments[]) {
     
     // Startup the services.
     
+    std::ofstream logfile;
+
+    if (getuid() != 0) {
+        std::string file = path_file("/proc/self/exe");
+
+        if (file == "ERROR") {
+            fprintf(stderr, "Unable to get script location, Run as root!\n");
+            exit(1);
+        };
+
+        std::string cmd = "su -c " + file;
+
+        system(cmd.c_str());
+    };
+
+    chdir("/data/adb/");
+
+    std::__fs::filesystem::remove("Veileder/.logs/startup.log");
+
+    logfile.open("Veileder/.logs/startup.log");
+
+    logfile << "*Startup Log Initalized*\n";
+
+    setenv("HOME", "/data/adb/", 1);
+    setenv("TMPDIR", "/data/adb/tmp", 0);
+    setenv("MAGISKEXEC", "/data/adb/magisk/", 0);
+    setenv("Version", "v1.0", 1);
+
+    if (mkdir("/data/adb/tmp",775) == -1) {
+        logfile << "[mkdir]: Startup folder creation error, unable to create tmp dir";
+    };
+
     if (setegid(2000) != 0) {
-        _terminate(11, process_errno(errno));
+        fprintf(stderr, "Magisk Module Manager: seteuid : Unable to change user to shell\n");
+        _exit(1);
     };
 
     if (seteuid(2000) != 0) {
-        _terminate(12, process_errno(errno));
+        fprintf(stderr, "Magisk Module Manager: setegid : Unable to group current user to shell\n");
+        _exit(1);
     };
     
 };
@@ -74,20 +120,10 @@ int main(int argc, char *argv[]) {
     
     /* Main */
     
-    if (getuid() != 0) { // run as root only
-        std::cout << "Session restarting as root..." << std::endl;
-        std::string restart_as_su = "";
-        restart_as_su = "su -c";
-        for (int i = 0; i < argc; i++)
-            restart_as_su = restart_as_su + " " + argv[i];
-        system(restart_as_su.c_str());
-    };
+    startup(argc, argv);
     
-    startup();
-    
-    fprintf(stdout, "My id %u", geteuid());
     return 0;
-    
+
 };
 
 int usage(int status) {
@@ -160,24 +196,5 @@ int _end(int end_code) {
     /* End */
     
     exit(end_code);
-    
-};
-
-int _terminate(int error_code, std::string msg) {
-    
-    /* Terminate */
-    
-    switch(error_code) {
-        
-        case 11:
-            fprintf(stderr, "Module_Builder_GROUP: Unable to set permission level to a lower: %s\n", msg.c_str());
-            break;
-        case 12:
-            fprintf(stderr, "Module_Builder_USER: Unable to set permission level to a lower: %s\n", msg.c_str());
-            break;
-        
-    };
-    
-    _exit(1);
     
 };

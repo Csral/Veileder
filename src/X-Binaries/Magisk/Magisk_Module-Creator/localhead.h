@@ -7,6 +7,7 @@
 
 int lock = 0;
 int read_config = 0;
+char buffer[625];
 
 class path {
 
@@ -70,6 +71,6 @@ class moduleprops {
 };
 
 int usage(int status);
-int _terminate(int error_code, std::string msg);
 int _end(int end_code);
 std::string process_errno(int number);
+std::string path_file(std::string location);
